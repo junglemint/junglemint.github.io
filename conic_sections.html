@@ -264,45 +264,6 @@
       color: var(--text-primary);
     }
 
-    /* ── ANGLE INDICATOR ── */
-    #angle-indicator {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 8px 12px;
-      background: var(--bg-card);
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      font-size: 12px;
-      color: var(--text-secondary);
-      margin-top: 8px;
-    }
-    #angle-indicator span {
-      font-weight: 600;
-      color: var(--accent);
-      font-variant-numeric: tabular-nums;
-    }
-
-    /* ── 2D TOGGLE BUTTON ── */
-    #toggle-2d-btn {
-      width: calc(100% - 32px);
-      margin: 12px 16px;
-      padding: 9px 14px;
-      background: var(--bg-card);
-      color: var(--text-secondary);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      letter-spacing: 0.4px;
-      transition: all var(--transition);
-    }
-    #toggle-2d-btn:hover {
-      background: var(--accent);
-      color: white;
-      border-color: var(--accent);
-    }
 
     /* ── 3D CANVAS WRAPPER ── */
     #canvas-wrap {
@@ -314,33 +275,6 @@
     #threejs-canvas {
       display: block;
       width: 100%; height: 100%;
-    }
-
-    /* ── 2D OVERLAY ── */
-    #overlay-2d {
-      position: absolute;
-      bottom: 16px; right: 16px;
-      width: 280px; height: 280px;
-      background: rgba(15,17,23,0.88);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      display: none;
-      flex-direction: column;
-      overflow: hidden;
-      backdrop-filter: blur(4px);
-    }
-    #overlay-2d.visible { display: flex; }
-    #overlay-2d-title {
-      font-size: 10px;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
-      padding: 7px 10px 5px;
-      border-bottom: 1px solid var(--border);
-    }
-    #canvas-2d {
-      flex: 1;
-      width: 100%;
     }
 
     /* ── CORNER INFO ── */
@@ -380,7 +314,6 @@
         width: 100%;
       }
 
-      #overlay-2d { display: none !important; }
       #corner-info { font-size: 10px; }
     }
   </style>
@@ -426,10 +359,6 @@
         <input type="range" id="slider-offset" min="0" max="3.0" step="0.05" value="1.5" />
       </div>
 
-      <div id="angle-indicator">
-        <span>반각 (α) = 45°</span>
-        <span id="angle-ratio">θ/α = 0%</span>
-      </div>
     </div>
 
     <!-- Formula -->
@@ -475,8 +404,6 @@
       </div>
     </div>
 
-    <!-- 2D Toggle -->
-    <button id="toggle-2d-btn">2D 단면도 보기</button>
   </div>
 
   <!-- ── 3D CANVAS ── -->
@@ -490,11 +417,6 @@
       우클릭 드래그: 이동
     </div>
 
-    <!-- 2D Projection Overlay -->
-    <div id="overlay-2d">
-      <div id="overlay-2d-title">2D 단면 투영</div>
-      <canvas id="canvas-2d"></canvas>
-    </div>
   </div>
 </div>
 
@@ -531,8 +453,6 @@ const COLORS_CSS = {
 let thetaDeg  = 0;
 let offsetD   = 1.5;
 let conicType = 'circle';
-let show2d    = false;
-
 // ─────────────────────────────────────────────────────────────────────────────
 // THREE.JS SETUP
 // ─────────────────────────────────────────────────────────────────────────────
@@ -763,6 +683,17 @@ function buildCurveFromPoints(pts) {
 
   if (segments.length === 0) return null;
 
+  // Wrap-around merge: if the last segment's end connects to the first segment's start,
+  // merge them (last segment points before first segment points)
+  if (segments.length >= 2) {
+    const first = segments[0];
+    const last  = segments[segments.length - 1];
+    if (last[last.length - 1].distanceTo(first[0]) < GAP_THRESHOLD) {
+      segments[0] = last.concat(first);
+      segments.pop();
+    }
+  }
+
   // Use the longest segment
   segments.sort((a, b) => b.length - a.length);
   const seg = segments[0];
@@ -808,7 +739,15 @@ function updateIntersectionCurve() {
         const makeLine = (t) => {
           const cosT = Math.cos(t), sinT = Math.sin(t);
           const pts = [];
-          for (let i = 0; i <= 40; i++) {
+          // Lower nappe (negative r → negative y)
+          for (let i = 40; i >= 1; i--) {
+            const r = -(i / 40) * lineLen * tanA;
+            pts.push(new THREE.Vector3(r * cosT, r / tanA, r * sinT));
+          }
+          // Apex
+          pts.push(new THREE.Vector3(0, 0, 0));
+          // Upper nappe (positive r → positive y)
+          for (let i = 1; i <= 40; i++) {
             const r = (i / 40) * lineLen * tanA;
             pts.push(new THREE.Vector3(r * cosT, r / tanA, r * sinT));
           }
@@ -902,8 +841,6 @@ let lastConicType = '';
 function updateUI() {
   document.getElementById('val-angle').textContent  = thetaDeg.toFixed(1) + '°';
   document.getElementById('val-offset').textContent = offsetD.toFixed(2);
-  document.getElementById('angle-ratio').textContent =
-    'θ/α = ' + ((thetaDeg / HALF_ANGLE_DEG) * 100).toFixed(0) + '%';
 
   if (conicType === lastConicType) return;
   lastConicType = conicType;
@@ -930,75 +867,6 @@ function updateUI() {
     el.classList.toggle('active', el.dataset.type === conicType);
   });
 
-  // Draw 2D
-  if (show2d) draw2D();
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 2D PROJECTION CANVAS
-// ─────────────────────────────────────────────────────────────────────────────
-const canvas2d = document.getElementById('canvas-2d');
-const ctx2d    = canvas2d.getContext('2d');
-
-function draw2D() {
-  const W = canvas2d.width  = canvas2d.clientWidth  || 200;
-  const H = canvas2d.height = canvas2d.clientHeight || 168;
-  ctx2d.clearRect(0, 0, W, H);
-
-  // Background
-  ctx2d.fillStyle = '#0f1117';
-  ctx2d.fillRect(0, 0, W, H);
-
-  // Grid
-  ctx2d.strokeStyle = '#1e2236';
-  ctx2d.lineWidth   = 1;
-  const step = 20;
-  for (let x = 0; x < W; x += step) { ctx2d.beginPath(); ctx2d.moveTo(x,0); ctx2d.lineTo(x,H); ctx2d.stroke(); }
-  for (let y = 0; y < H; y += step) { ctx2d.beginPath(); ctx2d.moveTo(0,y); ctx2d.lineTo(W,y); ctx2d.stroke(); }
-
-  // Axes
-  ctx2d.strokeStyle = '#3344aa';
-  ctx2d.lineWidth   = 1;
-  ctx2d.beginPath(); ctx2d.moveTo(W/2,0); ctx2d.lineTo(W/2,H); ctx2d.stroke();
-  ctx2d.beginPath(); ctx2d.moveTo(0,H/2); ctx2d.lineTo(W,H/2); ctx2d.stroke();
-
-  const thetaRad = thetaDeg * Math.PI / 180;
-  const pts = computeNappePoints(thetaRad, offsetD, 1);
-  const pts2 = conicType === 'hyperbola' ? computeNappePoints(thetaRad, offsetD, -1) : [];
-
-  const color = COLORS_CSS[conicType];
-  const scale = (W / 2) / 4.5; // world units to pixels — wider range
-  const ox = W / 2, oy = H / 2;
-
-  function drawPts(arr) {
-    if (arr.length < 2) return;
-    ctx2d.beginPath();
-    let moved = false;
-
-    for (let i = 0; i < arr.length; i++) {
-      const px = ox + arr[i].x * scale;
-      const py = oy - arr[i].z * scale; // top view: x-z plane
-      if (!moved) { ctx2d.moveTo(px, py); moved = true; }
-      else {
-        if (i > 0 && arr[i].distanceTo(arr[i - 1]) > 1.2) {
-          ctx2d.stroke(); ctx2d.beginPath(); ctx2d.moveTo(px, py);
-        } else {
-          ctx2d.lineTo(px, py);
-        }
-      }
-    }
-    ctx2d.strokeStyle = color;
-    ctx2d.lineWidth   = 2.5;
-    ctx2d.stroke();
-  }
-
-  drawPts(pts);
-  if (pts2.length) drawPts(pts2);
-
-  // Label
-  ctx2d.fillStyle = color;
-  ctx2d.font      = 'bold 10px sans-serif';
-  ctx2d.fillText(nameMapKr[conicType], 6, H - 6);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1008,7 +876,6 @@ function fullUpdate() {
   updatePlaneTransform();
   updateIntersectionCurve();
   updateUI();
-  if (show2d) draw2D();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1022,21 +889,6 @@ document.getElementById('slider-angle').addEventListener('input', (e) => {
 document.getElementById('slider-offset').addEventListener('input', (e) => {
   offsetD = parseFloat(e.target.value);
   fullUpdate();
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 2D TOGGLE
-// ─────────────────────────────────────────────────────────────────────────────
-const overlay2d = document.getElementById('overlay-2d');
-document.getElementById('toggle-2d-btn').addEventListener('click', () => {
-  show2d = !show2d;
-  overlay2d.classList.toggle('visible', show2d);
-  document.getElementById('toggle-2d-btn').textContent =
-    show2d ? '2D 단면도 닫기' : '2D 단면도 보기';
-  if (show2d) {
-    // Wait for display to take effect before drawing
-    requestAnimationFrame(() => draw2D());
-  }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
