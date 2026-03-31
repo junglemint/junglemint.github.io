@@ -292,6 +292,86 @@
       line-height: 1.7;
     }
 
+    /* ── CONE EQUATIONS ── */
+    .cone-eq-card {
+      background: var(--bg-card);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+    .cone-eq-row {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      padding: 9px 12px;
+    }
+    .cone-eq-row.upper { border-left: 3px solid #5577bb; }
+    .cone-eq-row.lower { border-left: 3px solid #446699; }
+    .cone-eq-row.plane { border-left: 3px solid #4488ff; }
+    .cone-eq-divider {
+      height: 1px;
+      background: var(--border);
+    }
+    .cone-nappe-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .cone-eq-tex {
+      font-size: 13px;
+      color: var(--text-primary);
+    }
+
+    /* ── DANDELIN TOGGLE ── */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      margin-bottom: 10px;
+      user-select: none;
+    }
+    .toggle-row input[type="checkbox"] {
+      width: 15px; height: 15px;
+      accent-color: var(--accent);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .toggle-label {
+      font-size: 13px;
+      color: var(--text-primary);
+      font-weight: 500;
+    }
+    .dandelin-card {
+      background: var(--bg-card);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      font-size: 11.5px;
+      color: var(--text-secondary);
+      line-height: 1.65;
+    }
+    .dandelin-card p { margin-bottom: 6px; }
+    .dandelin-card p:last-child { margin-bottom: 0; }
+    .focus-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 8px;
+    }
+    .focus-badge {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+    .focus-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
     /* ── RESPONSIVE MOBILE ── */
     @media (max-width: 768px) {
       #app { flex-direction: column; }
@@ -339,6 +419,27 @@
       </div>
     </div>
 
+    <!-- Cone Equations -->
+    <div class="panel-section">
+      <div class="section-label">원뿔 방정식</div>
+      <div class="cone-eq-card">
+        <div class="cone-eq-row upper">
+          <span class="cone-nappe-label">위 나페 (y ≥ 0)</span>
+          <span class="cone-eq-tex" id="eq-upper">$$x^2 + z^2 = y^2$$</span>
+        </div>
+        <div class="cone-eq-divider"></div>
+        <div class="cone-eq-row lower">
+          <span class="cone-nappe-label">아래 나페 (y ≤ 0)</span>
+          <span class="cone-eq-tex" id="eq-lower">$$x^2 + z^2 = y^2$$</span>
+        </div>
+        <div class="cone-eq-divider"></div>
+        <div class="cone-eq-row plane">
+          <span class="cone-nappe-label">절단 평면</span>
+          <span class="cone-eq-tex" id="eq-plane">$$y = d$$</span>
+        </div>
+      </div>
+    </div>
+
     <!-- Sliders -->
     <div class="panel-section">
       <div class="section-label">매개변수 조절</div>
@@ -366,6 +467,29 @@
       <div id="formula-box">
         <div id="formula-label">표준 방정식</div>
         <div id="formula-content">$$x^2 + y^2 = r^2$$</div>
+      </div>
+    </div>
+
+    <!-- Dandelin Spheres -->
+    <div class="panel-section">
+      <div class="section-label">당들랭 구 (Dandelin Spheres)</div>
+      <label class="toggle-row">
+        <input type="checkbox" id="toggle-dandelin" />
+        <span class="toggle-label">당들랭 구 표시</span>
+      </label>
+      <div class="dandelin-card" id="dandelin-info">
+        <p>원뿔과 절단 평면에 <strong>동시에 접하는 구</strong>입니다.<br>
+        구가 평면에 닿는 점이 이차곡선의 <strong>초점(focus)</strong>이 됩니다.</p>
+        <div class="focus-row" id="focus-row">
+          <div class="focus-badge">
+            <div class="focus-dot" style="background:#ffdd44;"></div>
+            <span id="focus1-label">초점 F₁</span>
+          </div>
+          <div class="focus-badge" id="focus2-badge">
+            <div class="focus-dot" style="background:#ff8844;"></div>
+            <span id="focus2-label">초점 F₂</span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -814,13 +938,96 @@ function updatePlaneTransform() {
 // ─────────────────────────────────────────────────────────────────────────────
 // UI UPDATE
 // ─────────────────────────────────────────────────────────────────────────────
-const formulaMap = {
-  circle:     '$$x^2 + y^2 = r^2$$',
-  ellipse:    '$$\\dfrac{x^2}{a^2} + \\dfrac{y^2}{b^2} = 1$$',
-  parabola:   '$$y^2 = 4px$$',
-  hyperbola:  '$$\\dfrac{x^2}{a^2} - \\dfrac{y^2}{b^2} = 1$$',
-  degenerate: '$$\\text{point or line}$$',
-};
+
+// ─── 절단면 2D 좌표 (u=x, v) 유도 ───────────────────────────────────────────
+// 원뿔: x²+z²=y²  절단면: y·cosθ+z·sinθ=d
+// 절단면 기저: e₁=(1,0,0), e₂=(0,−sinθ,cosθ)
+// 대입 → u² + cos2θ·v² + 2d·sin2θ·v − d²·cos2θ = 0
+// 완전제곱 → u² + cos2θ·(v + d·sin2θ/cos2θ)² = d²/cos2θ
+//   V = v + d·sin2θ/cos2θ  (중심은 v = −d·sin2θ/cos2θ)
+// ─────────────────────────────────────────────────────────────────────────────
+function computeConicFormula() {
+  const theta = thetaDeg * Math.PI / 180;
+  const c2 = Math.cos(2 * theta);
+  const s2 = Math.sin(2 * theta);
+  const d  = offsetD;
+
+  // 소수점 2자리, 불필요한 .00 제거
+  const f = n => {
+    const r = Math.round(n * 100) / 100;
+    return Number.isInteger(r) ? String(r) : r.toFixed(2);
+  };
+
+  if (conicType === 'degenerate') {
+    const eps = 0.025;
+    const ratio = theta / HALF_ANGLE_RAD; // θ / 45°
+    if (ratio < 1 - eps) {
+      // θ < 45°: 평면이 꼭짓점만 지남 → 점
+      return '$$\\text{꼭짓점 한 점: } (0,\\,0,\\,0)$$';
+    } else if (ratio < 1 + eps) {
+      // θ ≈ 45°: 평면이 모선과 평행 → 한 직선
+      return '$$x = 0,\\quad z = -y$$';
+    } else {
+      // θ > 45°: 두 모선 → 두 직선
+      const sinT = Math.sin(theta);
+      const cosT = Math.cos(theta);
+      const k = Math.sqrt(-Math.cos(2 * theta)) / sinT;
+      const m = cosT / sinT;
+      return `$$x = \\pm${f(k)}\\,y,\\quad z = -${f(m)}\\,y$$`;
+    }
+  }
+
+  // ── 포물선 (cos2θ = 0) ──────────────────────────────────────────────────
+  // u² + 2d·v = 0  →  x² = −2d·y  (y↑방향이 −v)
+  if (conicType === 'parabola') {
+    const p = d;   // 초점거리 p
+    return `$$x^2 = -${f(2 * p)}\\,y$$`;
+  }
+
+  // ── 원 (θ≈0, c2≈1) ────────────────────────────────────────────────────
+  if (conicType === 'circle') {
+    const r = d;  // θ=0이면 r=d
+    return `$$x^2 + y^2 = ${f(r * r)}$$`;
+  }
+
+  // 중심 이동: v₀ = −d·sin2θ/cos2θ  (V = v − v₀)
+  const v0 = -d * s2 / c2;
+  const vStr = Math.abs(v0) < 0.03
+    ? 'y'
+    : v0 > 0 ? `(y - ${f(v0)})` : `(y + ${f(-v0)})`;
+
+  // ── 타원 (cos2θ > 0) ─────────────────────────────────────────────────
+  if (conicType === 'ellipse') {
+    const b2 = d * d / c2;          // x 방향 반축²
+    const a2 = d * d / (c2 * c2);   // v 방향 반축² (장축)
+    return `$$\\dfrac{x^2}{${f(b2)}} + \\dfrac{${vStr}^2}{${f(a2)}} = 1$$`;
+  }
+
+  // ── 쌍곡선 (cos2θ < 0) ──────────────────────────────────────────────
+  if (conicType === 'hyperbola') {
+    const a2 = d * d / (c2 * c2);   // v 방향 허축²
+    const b2 = d * d / Math.abs(c2); // x 방향 실축²
+    return `$$\\dfrac{${vStr}^2}{${f(a2)}} - \\dfrac{x^2}{${f(b2)}} = 1$$`;
+  }
+
+  return '$$\\text{—}$$';
+}
+
+// MathJax 재렌더링 — 엘리먼트별 독립 타이머
+const _mjTimers = new Map();
+function debouncedTypeset(el, tex) {
+  if (_mjTimers.has(el)) clearTimeout(_mjTimers.get(el));
+  _mjTimers.set(el, setTimeout(() => {
+    _mjTimers.delete(el);
+    if (!window.MathJax || !window.MathJax.typesetPromise) {
+      el.innerHTML = tex; return;
+    }
+    window.MathJax.typesetClear([el]);
+    el.innerHTML = tex;
+    window.MathJax.typesetPromise([el]).catch(() => {});
+  }, 220));
+}
+
 const nameMapKr = {
   circle:     '원',
   ellipse:    '타원',
@@ -842,24 +1049,45 @@ function updateUI() {
   document.getElementById('val-angle').textContent  = thetaDeg.toFixed(1) + '°';
   document.getElementById('val-offset').textContent = offsetD.toFixed(2);
 
-  if (conicType === lastConicType) return;
-  lastConicType = conicType;
-
   const color = COLORS_CSS[conicType];
 
-  // Badge
-  document.getElementById('badge-dot').style.background   = color;
-  document.getElementById('badge-dot').style.boxShadow    = `0 0 8px ${color}88`;
-  document.getElementById('badge-name').textContent        = nameMapKr[conicType];
-  document.getElementById('badge-name').style.color        = color;
-  document.getElementById('badge-name-kr').textContent     = nameMapEn[conicType];
-  document.getElementById('conic-badge').style.borderColor = color + '66';
+  // Badge (곡선 유형 바뀔 때만)
+  if (conicType !== lastConicType) {
+    lastConicType = conicType;
+    document.getElementById('badge-dot').style.background   = color;
+    document.getElementById('badge-dot').style.boxShadow    = `0 0 8px ${color}88`;
+    document.getElementById('badge-name').textContent        = nameMapKr[conicType];
+    document.getElementById('badge-name').style.color        = color;
+    document.getElementById('badge-name-kr').textContent     = nameMapEn[conicType];
+    document.getElementById('conic-badge').style.borderColor = color + '66';
 
-  // Formula
+    // Steps
+    document.querySelectorAll('.step-item').forEach(el => {
+      el.classList.toggle('active', el.dataset.type === conicType);
+    });
+  }
+
+  // Formula — 슬라이더 움직일 때마다 계수 갱신
   const formulaEl = document.getElementById('formula-content');
-  formulaEl.textContent = formulaMap[conicType];
-  if (window.MathJax && window.MathJax.typesetPromise) {
-    window.MathJax.typesetPromise([formulaEl]).catch(() => {});
+  const formulaTex = computeConicFormula();
+  debouncedTypeset(formulaEl, formulaTex);
+
+  // 절단 평면 방정식 업데이트
+  const planeEl = document.getElementById('eq-plane');
+  if (planeEl) {
+    const theta = thetaDeg * Math.PI / 180;
+    const cosT = Math.round(Math.cos(theta) * 1000) / 1000;
+    const sinT = Math.round(Math.sin(theta) * 1000) / 1000;
+    const dVal = offsetD.toFixed(2);
+    let planeTex;
+    if (Math.abs(sinT) < 0.01) {
+      planeTex = `$$y = ${dVal}$$`;
+    } else if (Math.abs(cosT) < 0.01) {
+      planeTex = `$$z = ${dVal}$$`;
+    } else {
+      planeTex = `$$${cosT}\\,y + ${sinT}\\,z = ${dVal}$$`;
+    }
+    debouncedTypeset(planeEl, planeTex);
   }
 
   // Steps
@@ -876,6 +1104,172 @@ function fullUpdate() {
   updatePlaneTransform();
   updateIntersectionCurve();
   updateUI();
+  updateDandelinSpheres();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DANDELIN SPHERES
+// ─────────────────────────────────────────────────────────────────────────────
+// Cone half-angle α = 45°  →  sin α = cos α = 1/√2
+// Sphere inscribed in upper nappe, center (0, h, 0):
+//   radius r_s = h · sin α
+//   tangent to plane ↔ |h·cosθ − d| = r_s
+//
+//   Sphere 1 (below plane):  h1 = d / (cosθ + sinα)
+//   Sphere 2 (above plane):  h2 = d / (cosθ − sinα)  [ellipse only, cosθ > sinα]
+//   Lower-nappe sphere (hyperbola): center (0,−hL,0), hL = d / (sinα − cosθ)
+
+const SIN_ALPHA = Math.sin(HALF_ANGLE_RAD); // 1/√2
+
+let dandelinVisible = false;
+
+// Sphere meshes
+function makeDandelinSphere(color) {
+  const geom = new THREE.SphereGeometry(1, 48, 32);
+  const mat  = new THREE.MeshPhongMaterial({
+    color,
+    emissive: new THREE.Color(color),
+    emissiveIntensity: 0.4,
+    transparent: true,
+    opacity: 0.35,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  });
+  const mesh = new THREE.Mesh(geom, mat);
+  mesh.renderOrder = 1;
+  mesh.visible = false;
+  scene.add(mesh);
+  return mesh;
+}
+
+function setDandelinVisible(ds, v) { ds.visible = v; }
+function setDandelinTransform(ds, y, r) {
+  ds.position.set(0, y, 0);
+  ds.scale.setScalar(r);
+}
+
+function makeFocusMesh(color) {
+  const geom = new THREE.SphereGeometry(0.045, 16, 12);
+  const mat  = new THREE.MeshBasicMaterial({ color, depthTest: false, depthWrite: false });
+  const mesh = new THREE.Mesh(geom, mat);
+  mesh.renderOrder = 99;
+  mesh.visible = false;
+  scene.add(mesh);
+  return mesh;
+}
+
+const dSphere1  = makeDandelinSphere(0xffdd44); // yellow — F1
+const dSphere2  = makeDandelinSphere(0xff8844); // orange — F2
+const focusMesh1 = makeFocusMesh(0xffdd44);
+const focusMesh2 = makeFocusMesh(0xff8844);
+
+// Line connecting the two foci
+const focusLineGeom = new THREE.BufferGeometry();
+focusLineGeom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+const focusLineMesh = new THREE.Line(focusLineGeom,
+  new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35 }));
+focusLineMesh.visible = false;
+scene.add(focusLineMesh);
+
+function computeFoci() {
+  // 초점 좌표를 계산해서 반환. 항상 호출됨 (당들랭 구 여부와 무관)
+  const thetaRad = thetaDeg * Math.PI / 180;
+  const cosT = Math.cos(thetaRad);
+  const sinT = Math.sin(thetaRad);
+  const type = conicType;
+  const d    = offsetD;
+
+  if (type === 'degenerate' || d < 0.01) return { f1: null, f2: null, h1: 0, r1: 0, h2: 0, r2: 0 };
+
+  const h1 = d / (cosT + SIN_ALPHA);
+  const r1 = h1 * SIN_ALPHA;
+  const f1 = new THREE.Vector3(0, h1 + r1 * cosT, r1 * sinT);
+
+  let f2 = null, h2 = 0, r2 = 0;
+
+  const MAX_R = CONE_HEIGHT * 0.95; // 구가 원뿔을 벗어나지 않는 최대 반지름
+
+  if (type === 'ellipse' || type === 'circle') {
+    const denom2 = cosT - SIN_ALPHA;
+    if (Math.abs(denom2) > 0.01) {
+      h2 = d / denom2;
+      r2 = h2 * SIN_ALPHA;
+      if (h2 > 0 && r2 < MAX_R)
+        f2 = new THREE.Vector3(0, h2 - r2 * cosT, -r2 * sinT);
+    }
+  } else if (type === 'hyperbola') {
+    const denom2 = SIN_ALPHA - cosT;
+    if (denom2 > 0.01) {
+      const hL = d / denom2;
+      r2 = hL * SIN_ALPHA;
+      h2 = -hL;
+      if (hL > 0 && r2 < MAX_R)
+        f2 = new THREE.Vector3(0, -hL + r2 * cosT, r2 * sinT);
+    }
+  }
+
+  // r1도 clamp — 원 경우 d가 작으면 구가 작아야 함
+  if (r1 >= MAX_R) return { f1: null, f2: null, h1: 0, r1: 0, h2: 0, r2: 0 };
+
+  return { f1, f2, h1, r1, h2, r2 };
+}
+
+function updateDandelinSpheres() {
+  const thetaRad = thetaDeg * Math.PI / 180;
+  const cosT = Math.cos(thetaRad);
+  const sinT = Math.sin(thetaRad);
+  const type = conicType;
+
+  // 초점 계산 (항상)
+  const { f1, f2, h1, r1, h2, r2 } = computeFoci();
+
+  // 초점 점 — 항상 표시
+  setDandelinVisible(dSphere1, false);
+  setDandelinVisible(dSphere2, false);
+  focusMesh1.visible = false;
+  focusMesh2.visible = false;
+  focusLineMesh.visible = false;
+
+  if (type === 'degenerate' || offsetD < 0.01) return;
+
+  // 초점 F1
+  focusMesh1.position.copy(f1);
+  focusMesh1.visible = true;
+
+  // 초점 F2
+  if (f2) {
+    focusMesh2.position.copy(f2);
+    focusMesh2.visible = true;
+    const pos = focusLineGeom.attributes.position;
+    pos.setXYZ(0, f1.x, f1.y, f1.z);
+    pos.setXYZ(1, f2.x, f2.y, f2.z);
+    pos.needsUpdate = true;
+    focusLineMesh.visible = true;
+  }
+
+  // 당들랭 구 — 토글 시에만
+  if (dandelinVisible) {
+    setDandelinTransform(dSphere1, h1, r1);
+    setDandelinVisible(dSphere1, true);
+
+    if (f2 && Math.abs(r2) > 0.01) {
+      setDandelinTransform(dSphere2, h2, r2);
+      setDandelinVisible(dSphere2, true);
+    }
+  }
+
+  // 패널 라벨
+  const label1 = document.getElementById('focus1-label');
+  const label2 = document.getElementById('focus2-label');
+  const badge2 = document.getElementById('focus2-badge');
+  label1.textContent = `F₁ (${f1.x.toFixed(2)}, ${f1.y.toFixed(2)}, ${f1.z.toFixed(2)})`;
+  if (f2) {
+    label2.textContent = `F₂ (${f2.x.toFixed(2)}, ${f2.y.toFixed(2)}, ${f2.z.toFixed(2)})`;
+    badge2.style.opacity = '1';
+  } else {
+    label2.textContent = 'F₂ (∞)';
+    badge2.style.opacity = '0.4';
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -889,6 +1283,11 @@ document.getElementById('slider-angle').addEventListener('input', (e) => {
 document.getElementById('slider-offset').addEventListener('input', (e) => {
   offsetD = parseFloat(e.target.value);
   fullUpdate();
+});
+
+document.getElementById('toggle-dandelin').addEventListener('change', (e) => {
+  dandelinVisible = e.target.checked;
+  updateDandelinSpheres();
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
