@@ -467,6 +467,10 @@
       <div id="formula-box">
         <div id="formula-label">표준 방정식</div>
         <div id="formula-content">$$x^2 + y^2 = r^2$$</div>
+        <div id="directrix-row" style="display:none; width:100%; margin-top:8px; border-top:1px solid var(--border); padding-top:8px;">
+          <div id="formula-label" style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:4px;">준선 (Directrix)</div>
+          <div id="directrix-content" style="font-size:13px;color:var(--text-secondary);text-align:center;"></div>
+        </div>
       </div>
     </div>
 
@@ -1129,9 +1133,9 @@ function makeDandelinSphere(color) {
   const mat  = new THREE.MeshPhongMaterial({
     color,
     emissive: new THREE.Color(color),
-    emissiveIntensity: 0.4,
+    emissiveIntensity: 0.15,
     transparent: true,
-    opacity: 0.35,
+    opacity: 0.06,
     side: THREE.DoubleSide,
     depthWrite: false,
   });
@@ -1156,6 +1160,55 @@ function makeFocusMesh(color) {
   mesh.visible = false;
   scene.add(mesh);
   return mesh;
+}
+
+// ── 준선 (Directrix) ──────────────────────────────────────────────────────────
+let directrixMesh1 = null;
+let directrixMesh2 = null;
+
+function disposeDirectrix(obj) {
+  if (!obj) return;
+  if (obj.isGroup) {
+    obj.children.slice().forEach(child => {
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) child.material.dispose();
+    });
+  } else {
+    if (obj.geometry) obj.geometry.dispose();
+    if (obj.material) obj.material.dispose();
+  }
+  scene.remove(obj);
+}
+
+function buildDirectrixTube(color, h, cosT, sinT, d) {
+  if (Math.abs(sinT) < 0.01) return { mesh: null, zD: null };
+  const zD = (d - h * cosT) / sinT;
+
+  // 준선은 절단 평면 위에서 x축 방향 직선
+  // 절단 평면의 다른 방향(v축): e2 = (0, -sinT, cosT)
+  // 준선은 e1=(1,0,0) 방향으로 뻗음 — 항상 절단 평면 위에 있음
+  // 추가로 e2 방향 막대도 함께 그어서 어느 각도에서도 보이게 함
+  const L = 10;
+  const cx = 0, cy = h, cz = zD; // 준선이 y축을 지나는 중심점
+
+  const group = new THREE.Group();
+  const mat = new THREE.MeshBasicMaterial({ color, depthTest: false, depthWrite: false });
+
+  // x축 방향 막대 (준선의 실제 방향)
+  const c1 = new THREE.LineCurve3(
+    new THREE.Vector3(cx - L, cy, cz),
+    new THREE.Vector3(cx + L, cy, cz)
+  );
+  const tube1 = new THREE.Mesh(new THREE.TubeGeometry(c1, 1, 0.08, 8), mat);
+  tube1.renderOrder = 50;
+  tube1.frustumCulled = false;
+  group.add(tube1);
+
+  group.renderOrder   = 50;
+  group.frustumCulled = false;
+  scene.add(group);
+
+  return { mesh: group, zD };
 }
 
 const dSphere1  = makeDandelinSphere(0xffdd44); // yellow — F1
@@ -1223,18 +1276,23 @@ function updateDandelinSpheres() {
   // 초점 계산 (항상)
   const { f1, f2, h1, r1, h2, r2 } = computeFoci();
 
-  // 초점 점 — 항상 표시
+  // 모두 초기화
   setDandelinVisible(dSphere1, false);
   setDandelinVisible(dSphere2, false);
   focusMesh1.visible = false;
   focusMesh2.visible = false;
   focusLineMesh.visible = false;
+  disposeDirectrix(directrixMesh1); directrixMesh1 = null;
+  disposeDirectrix(directrixMesh2); directrixMesh2 = null;
+  document.getElementById('directrix-row').style.display = 'none';
 
   if (type === 'degenerate' || offsetD < 0.01) return;
 
   // 초점 F1
-  focusMesh1.position.copy(f1);
-  focusMesh1.visible = true;
+  if (f1) {
+    focusMesh1.position.copy(f1);
+    focusMesh1.visible = true;
+  }
 
   // 초점 F2
   if (f2) {
@@ -1258,11 +1316,49 @@ function updateDandelinSpheres() {
     }
   }
 
+  // ── 준선 — h값을 MAX_R 체크 없이 직접 계산 ────────────────────────────────
+  // (f1/f2 null 여부와 무관하게 항상 그림)
+  const dv = offsetD;
+  const dh1 = dv / (cosT + SIN_ALPHA);
+  let dh2 = null;
+  if (type === 'ellipse' || type === 'circle') {
+    const dn = cosT - SIN_ALPHA;
+    if (Math.abs(dn) > 0.01) { const v = dv / dn; if (v > 0) dh2 = v; }
+  } else if (type === 'hyperbola') {
+    const dn = SIN_ALPHA - cosT;
+    if (dn > 0.01) { const hL = dv / dn; if (hL > 0) dh2 = -hL; }
+  }
+
+  const { mesh: dm1, zD: zD1 } = buildDirectrixTube(0xffee00, dh1, cosT, sinT, dv);
+  directrixMesh1 = dm1;
+  let zD2 = null;
+  if (dh2 !== null) {
+    const { mesh: dm2, zD } = buildDirectrixTube(0xff6600, dh2, cosT, sinT, dv);
+    directrixMesh2 = dm2;
+    zD2 = zD;
+  }
+
+  // 패널 준선 수식 표시
+  const f2str = n => (Math.round(n * 100) / 100).toFixed(2);
+  const dirEl  = document.getElementById('directrix-content');
+  const dirRow = document.getElementById('directrix-row');
+  if (zD1 !== null) {
+    let tex = `$$y = ${f2str(dh1)},\\; z = ${f2str(zD1)}$$`;
+    if (zD2 !== null && dh2 !== null)
+      tex += `<br>$$y = ${f2str(dh2)},\\; z = ${f2str(zD2)}$$`;
+    dirEl.innerHTML = tex;
+    dirRow.style.display = 'block';
+    if (window.MathJax && window.MathJax.typesetPromise) {
+      window.MathJax.typesetClear([dirEl]);
+      window.MathJax.typesetPromise([dirEl]).catch(() => {});
+    }
+  }
+
   // 패널 라벨
   const label1 = document.getElementById('focus1-label');
   const label2 = document.getElementById('focus2-label');
   const badge2 = document.getElementById('focus2-badge');
-  label1.textContent = `F₁ (${f1.x.toFixed(2)}, ${f1.y.toFixed(2)}, ${f1.z.toFixed(2)})`;
+  if (f1) label1.textContent = `F₁ (${f1.x.toFixed(2)}, ${f1.y.toFixed(2)}, ${f1.z.toFixed(2)})`;
   if (f2) {
     label2.textContent = `F₂ (${f2.x.toFixed(2)}, ${f2.y.toFixed(2)}, ${f2.z.toFixed(2)})`;
     badge2.style.opacity = '1';
