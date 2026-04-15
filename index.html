@@ -9,10 +9,13 @@
 
     body {
       font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
-      background: #0a0a1a;
-      color: #e0e0e0;
-      min-height: 100vh;
-      overflow-x: hidden;
+      background: #ffffff;
+      color: #1a1d2e;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
     }
 
     /* 배경 애니메이션 */
@@ -28,14 +31,14 @@
       position: relative;
       z-index: 1;
       text-align: center;
-      padding: 80px 20px 40px;
+      padding: 20px 20px 16px;
     }
 
     header h1 {
       font-size: 3rem;
       font-weight: 300;
       letter-spacing: 0.1em;
-      color: #fff;
+      color: #1a1d2e;
       margin-bottom: 16px;
     }
 
@@ -49,7 +52,7 @@
 
     header p {
       font-size: 1.15rem;
-      color: #94a3b8;
+      color: #4a5080;
       max-width: 600px;
       margin: 0 auto;
       line-height: 1.8;
@@ -61,17 +64,18 @@
       z-index: 1;
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 28px;
-      max-width: 1000px;
-      margin: 60px auto;
+      gap: 16px;
+      max-width: 648px;
+      margin: 16px auto;
       padding: 0 24px;
+      width: 100%;
     }
 
     .card {
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: #f4f6fb;
+      border: 1px solid #dde1f0;
       border-radius: 16px;
-      padding: 36px 32px;
+      padding: 18px 22px;
       transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s;
       cursor: pointer;
       text-decoration: none;
@@ -81,8 +85,8 @@
 
     .card:hover {
       transform: translateY(-6px);
-      border-color: rgba(255, 255, 255, 0.2);
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+      border-color: #9fa8da;
+      box-shadow: 0 20px 60px rgba(90, 100, 180, 0.15);
     }
 
     .card-icon {
@@ -103,13 +107,13 @@
     .card h2 {
       font-size: 1.3rem;
       font-weight: 600;
-      color: #fff;
+      color: #1a1d2e;
       margin-bottom: 10px;
     }
 
     .card p {
       font-size: 0.95rem;
-      color: #94a3b8;
+      color: #4a5080;
       line-height: 1.7;
     }
 
@@ -119,8 +123,8 @@
       padding: 4px 12px;
       font-size: 0.8rem;
       border-radius: 20px;
-      background: rgba(255, 255, 255, 0.06);
-      color: #cbd5e1;
+      background: #dde1f0;
+      color: #5c6bc0;
     }
 
     /* 수식 장식 */
@@ -128,9 +132,9 @@
       position: relative;
       z-index: 1;
       text-align: center;
-      padding: 40px 20px;
-      font-size: 1.1rem;
-      color: #475569;
+      padding: 12px 20px;
+      font-size: 1rem;
+      color: #8890b8;
       letter-spacing: 0.05em;
       font-family: 'Georgia', serif;
       font-style: italic;
@@ -141,8 +145,8 @@
       position: relative;
       z-index: 1;
       text-align: center;
-      padding: 40px 20px 60px;
-      color: #334155;
+      padding: 10px 20px 14px;
+      color: #8890b8;
       font-size: 0.85rem;
     }
 
@@ -164,7 +168,7 @@
 <canvas class="bg-canvas" id="bgCanvas"></canvas>
 
 <header>
-  <h1>원뿔 <span>곡선</span></h1>
+  <h1><span>원뿔 곡선</span></h1>
   <p>
     원뿔 곡선을 직관적으로 탐구합니다.<br>
     이차곡선, 직선, 점이 어떻게 만들어지는지 눈으로 확인하세요.
@@ -174,12 +178,11 @@
 <div class="cards">
 
   <a class="card" href="conic_sections.html">
-    <div class="card-icon blue">◎</div>
-    <h2>원뿔 곡선 (Conic Section)</h2>
+<h2>원뿔 곡선 (Conic Sections)</h2>
     <p>
       원뿔을 평면으로 자를 때 나타나는 단면을 3D로 확인합니다.
-      슬라이더로 절단 각도를 조절하며 원, 타원, 포물선, 쌍곡선이
-      만들어지는 과정을 관찰하세요.
+      슬라이더로 절단 각도를 조절하며<br>
+      원, 타원, 포물선, 쌍곡선이 만들어지는 과정을 관찰하세요.
     </p>
     <span class="tag">3D 인터랙티브</span>
   </a>
@@ -233,7 +236,7 @@
       if (p.y > h) p.y = 0;
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(148, 163, 184, ${p.alpha})`;
+      ctx.fillStyle = `rgba(90, 100, 180, ${p.alpha * 1.1})`;
       ctx.fill();
     }
 
@@ -247,7 +250,7 @@
           ctx.beginPath();
           ctx.moveTo(particles[i].x, particles[i].y);
           ctx.lineTo(particles[j].x, particles[j].y);
-          ctx.strokeStyle = `rgba(148, 163, 184, ${0.06 * (1 - dist / 12000)})`;
+          ctx.strokeStyle = `rgba(90, 100, 180, ${0.088 * (1 - dist / 12000)})`;
           ctx.stroke();
         }
       }
