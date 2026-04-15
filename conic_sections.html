@@ -30,14 +30,14 @@
 
     :root {
       --panel-width: 300px;
-      --bg-dark: #0f1117;
-      --bg-panel: #1a1d27;
-      --bg-card: #22263a;
-      --text-primary: #e8eaf6;
-      --text-secondary: #9fa8da;
-      --text-muted: #5c6bc0;
-      --accent: #7986cb;
-      --border: #2e3454;
+      --bg-dark: #ffffff;
+      --bg-panel: #ffffff;
+      --bg-card: #f4f6fb;
+      --text-primary: #1a1d2e;
+      --text-secondary: #4a5080;
+      --text-muted: #8890b8;
+      --accent: #5c6bc0;
+      --border: #dde1f0;
       --color-circle: #2196F3;
       --color-ellipse: #4CAF50;
       --color-parabola: #FF9800;
@@ -80,7 +80,7 @@
     .panel-header {
       padding: 20px 18px 14px;
       border-bottom: 1px solid var(--border);
-      background: linear-gradient(135deg, #1a1d27 0%, #1e2236 100%);
+      background: linear-gradient(135deg, #ffffff 0%, #f0f3ff 100%);
     }
     .panel-title {
       font-size: 18px;
@@ -164,7 +164,7 @@
       -webkit-appearance: none;
       width: 100%;
       height: 5px;
-      background: var(--bg-dark);
+      background: var(--border);
       border-radius: 3px;
       outline: none;
       cursor: pointer;
@@ -589,7 +589,7 @@ const canvasWrap = document.getElementById('canvas-wrap');
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.setClearColor(0x0f1117, 1);
+renderer.setClearColor(0xffffff, 1);
 renderer.shadowMap.enabled = true;
 
 const scene  = new THREE.Scene();
@@ -829,7 +829,7 @@ function buildCurveFromPoints(pts) {
   // Close the curve for circle/ellipse (first and last points are close)
   const isClosed = seg.length > 10 && seg[0].distanceTo(seg[seg.length - 1]) < GAP_THRESHOLD;
   const spline = new THREE.CatmullRomCurve3(seg, isClosed, 'catmullrom', 0.5);
-  const tubeGeom = new THREE.TubeGeometry(spline, Math.min(seg.length * 2, 600), 0.035, 8, isClosed);
+  const tubeGeom = new THREE.TubeGeometry(spline, Math.min(seg.length * 2, 600), 0.018, 8, isClosed);
   return tubeGeom;
 }
 
@@ -1124,6 +1124,7 @@ function fullUpdate() {
 //   Lower-nappe sphere (hyperbola): center (0,−hL,0), hL = d / (sinα − cosθ)
 
 const SIN_ALPHA = Math.sin(HALF_ANGLE_RAD); // 1/√2
+const COS_ALPHA = Math.cos(HALF_ANGLE_RAD); // 1/√2  (45° cone)
 
 let dandelinVisible = false;
 
@@ -1133,9 +1134,9 @@ function makeDandelinSphere(color) {
   const mat  = new THREE.MeshPhongMaterial({
     color,
     emissive: new THREE.Color(color),
-    emissiveIntensity: 0.15,
+    emissiveIntensity: 0.4,
     transparent: true,
-    opacity: 0.06,
+    opacity: 0.22,
     side: THREE.DoubleSide,
     depthWrite: false,
   });
@@ -1153,7 +1154,7 @@ function setDandelinTransform(ds, y, r) {
 }
 
 function makeFocusMesh(color) {
-  const geom = new THREE.SphereGeometry(0.045, 16, 12);
+  const geom = new THREE.SphereGeometry(0.022, 16, 12);
   const mat  = new THREE.MeshBasicMaterial({ color, depthTest: false, depthWrite: false });
   const mesh = new THREE.Mesh(geom, mat);
   mesh.renderOrder = 99;
@@ -1181,25 +1182,29 @@ function disposeDirectrix(obj) {
 }
 
 function buildDirectrixTube(color, h, cosT, sinT, d) {
-  if (Math.abs(sinT) < 0.01) return { mesh: null, zD: null };
-  const zD = (d - h * cosT) / sinT;
+  if (Math.abs(sinT) < 0.01) return { mesh: null, yD: null, zD: null };
+  // 준선 = 절단 평면 ∩ 당들랭 접촉원 평면
+  // 접촉원 높이: y_t = h·sinα·cosα  (구 중심 h, 반각 α=45° → h/2)
+  const yD = h * SIN_ALPHA * COS_ALPHA;
+  const zD = (d - yD * cosT) / sinT;
 
-  // 준선은 절단 평면 위에서 x축 방향 직선
-  // 절단 평면의 다른 방향(v축): e2 = (0, -sinT, cosT)
-  // 준선은 e1=(1,0,0) 방향으로 뻗음 — 항상 절단 평면 위에 있음
-  // 추가로 e2 방향 막대도 함께 그어서 어느 각도에서도 보이게 함
-  const L = 10;
-  const cx = 0, cy = h, cz = zD; // 준선이 y축을 지나는 중심점
+  // 절단 평면 메시의 로컬 v좌표: v_local = (d·cosT − yD) / sinT
+  // 평면 메시 범위(±PLANE_SIZE/2) 밖이면 표시하지 않음
+  const vLocal = (d * cosT - yD) / sinT;
+  if (Math.abs(vLocal) > PLANE_SIZE / 2) return { mesh: null, yD: null, zD: null };
+
+  // 튜브를 평면 메시 x 범위(±PLANE_SIZE/2)에 맞게 클리핑
+  const L = PLANE_SIZE / 2;
 
   const group = new THREE.Group();
   const mat = new THREE.MeshBasicMaterial({ color, depthTest: false, depthWrite: false });
 
-  // x축 방향 막대 (준선의 실제 방향)
+  // x축 방향 막대 (준선의 실제 방향) — 평면 메시 너비와 동일
   const c1 = new THREE.LineCurve3(
-    new THREE.Vector3(cx - L, cy, cz),
-    new THREE.Vector3(cx + L, cy, cz)
+    new THREE.Vector3(-L, yD, zD),
+    new THREE.Vector3( L, yD, zD)
   );
-  const tube1 = new THREE.Mesh(new THREE.TubeGeometry(c1, 1, 0.08, 8), mat);
+  const tube1 = new THREE.Mesh(new THREE.TubeGeometry(c1, 1, 0.018, 8), mat);
   tube1.renderOrder = 50;
   tube1.frustumCulled = false;
   group.add(tube1);
@@ -1208,7 +1213,7 @@ function buildDirectrixTube(color, h, cosT, sinT, d) {
   group.frustumCulled = false;
   scene.add(group);
 
-  return { mesh: group, zD };
+  return { mesh: group, yD, zD };
 }
 
 const dSphere1  = makeDandelinSphere(0xffdd44); // yellow — F1
@@ -1329,13 +1334,13 @@ function updateDandelinSpheres() {
     if (dn > 0.01) { const hL = dv / dn; if (hL > 0) dh2 = -hL; }
   }
 
-  const { mesh: dm1, zD: zD1 } = buildDirectrixTube(0xffee00, dh1, cosT, sinT, dv);
+  const { mesh: dm1, yD: yD1, zD: zD1 } = buildDirectrixTube(0xffee00, dh1, cosT, sinT, dv);
   directrixMesh1 = dm1;
-  let zD2 = null;
+  let yD2 = null, zD2 = null;
   if (dh2 !== null) {
-    const { mesh: dm2, zD } = buildDirectrixTube(0xff6600, dh2, cosT, sinT, dv);
+    const { mesh: dm2, yD, zD } = buildDirectrixTube(0xff6600, dh2, cosT, sinT, dv);
     directrixMesh2 = dm2;
-    zD2 = zD;
+    yD2 = yD; zD2 = zD;
   }
 
   // 패널 준선 수식 표시
@@ -1343,9 +1348,9 @@ function updateDandelinSpheres() {
   const dirEl  = document.getElementById('directrix-content');
   const dirRow = document.getElementById('directrix-row');
   if (zD1 !== null) {
-    let tex = `$$y = ${f2str(dh1)},\\; z = ${f2str(zD1)}$$`;
-    if (zD2 !== null && dh2 !== null)
-      tex += `<br>$$y = ${f2str(dh2)},\\; z = ${f2str(zD2)}$$`;
+    let tex = `$$y = ${f2str(yD1)},\\; z = ${f2str(zD1)}$$`;
+    if (yD2 !== null && zD2 !== null)
+      tex += `<br>$$y = ${f2str(yD2)},\\; z = ${f2str(zD2)}$$`;
     dirEl.innerHTML = tex;
     dirRow.style.display = 'block';
     if (window.MathJax && window.MathJax.typesetPromise) {
